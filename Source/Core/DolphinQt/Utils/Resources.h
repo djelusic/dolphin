@@ -1,5 +1,5 @@
 // Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
@@ -33,14 +33,13 @@ public:
 		TOOLBAR_FULLSCREEN,
 		TOOLBAR_SCREENSHOT,
 		TOOLBAR_CONFIGURE,
-		TOOLBAR_PLUGIN_GFX,
-		TOOLBAR_PLUGIN_DSP,
-		TOOLBAR_PLUGIN_GCPAD,
-		TOOLBAR_PLUGIN_WIIMOTE,
+		TOOLBAR_GRAPHICS,
+		TOOLBAR_CONTROLLERS,
 		TOOLBAR_HELP,
 		MEMCARD,
 		HOTKEYS,
 		DOLPHIN_LOGO,
+		DOLPHIN_LOGO_LARGE,
 		BANNER_MISSING,
 		NUM_ICONS
 	};

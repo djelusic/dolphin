@@ -1,6 +1,9 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2008 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
+
+#include "Common/MsgHandler.h"
+#include "Common/Logging/Log.h"
 
 #include "Core/HW/GCPad.h"
 #include "Core/HW/SI_DeviceGCSteeringWheel.h"
@@ -21,11 +24,8 @@ int CSIDevice_GCSteeringWheel::RunBuffer(u8* _pBuffer, int _iLength)
 	switch (command)
 	{
 	case CMD_RESET:
+	case CMD_ID:
 		*(u32*)&_pBuffer[0] = SI_GC_STEERING;
-		break;
-
-	// Seen in F-Zero GX
-	case CMD_MOTOR_OFF:
 		break;
 
 	// DEFAULT

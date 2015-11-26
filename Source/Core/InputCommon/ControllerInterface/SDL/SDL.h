@@ -1,5 +1,5 @@
-// Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2010 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
@@ -17,9 +17,6 @@
 
 #ifdef USE_SDL_HAPTIC
 	#include <SDL_haptic.h>
-	#define SDL_INIT_FLAGS  SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC
-#else
-	#define SDL_INIT_FLAGS  SDL_INIT_JOYSTICK
 #endif
 
 namespace ciface

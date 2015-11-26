@@ -1,3 +1,7 @@
+// Copyright 2011 Dolphin Emulator Project
+// Licensed under GPLv2+
+// Refer to the license.txt file included.
+
 #pragma once
 
 #include <string>
@@ -13,6 +17,7 @@ class VideoBackend : public VideoBackendHardware
 
 	std::string GetName() const override;
 	std::string GetDisplayName() const override;
+	std::string GetConfigName() const override;
 
 	void Video_Prepare() override;
 	void Video_Cleanup() override;

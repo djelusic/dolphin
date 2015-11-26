@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2014 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #include <cfloat>
@@ -26,7 +26,11 @@ void GeometryShaderManager::Init()
 {
 	memset(&constants, 0, sizeof(constants));
 
-	Dirty();
+	// Init any intial constants which aren't zero when bpmem is zero.
+	SetViewportChanged();
+	SetProjectionChanged();
+
+	dirty = true;
 }
 
 void GeometryShaderManager::Shutdown()
@@ -35,12 +39,9 @@ void GeometryShaderManager::Shutdown()
 
 void GeometryShaderManager::Dirty()
 {
-	SetViewportChanged();
-	SetProjectionChanged();
-	SetLinePtWidthChanged();
-
-	for (int i = 0; i < 8; i++)
-		SetTexCoordChanged(i);
+	// This function is called after a savestate is loaded.
+	// Any constants that can changed based on settings should be re-calculated
+	s_projection_changed = true;
 
 	dirty = true;
 }
@@ -110,9 +111,14 @@ void GeometryShaderManager::SetTexCoordChanged(u8 texmapid)
 
 void GeometryShaderManager::DoState(PointerWrap &p)
 {
+	p.Do(s_projection_changed);
+	p.Do(s_viewport_changed);
+
+	p.Do(constants);
+
 	if (p.GetMode() == PointerWrap::MODE_READ)
 	{
-		// Reload current state from global GPU state
+		// Fixup the current state from global GPU state
 		// NOTE: This requires that all GPU memory has been loaded already.
 		Dirty();
 	}

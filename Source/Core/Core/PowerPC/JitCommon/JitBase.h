@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2010 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
@@ -23,8 +23,8 @@
 #include "Core/PowerPC/PowerPC.h"
 #include "Core/PowerPC/PPCAnalyst.h"
 #include "Core/PowerPC/PPCTables.h"
+#include "Core/PowerPC/Jit64Common/Jit64AsmCommon.h"
 #include "Core/PowerPC/JitCommon/Jit_Util.h"
-#include "Core/PowerPC/JitCommon/JitAsmCommon.h"
 #include "Core/PowerPC/JitCommon/JitCache.h"
 #include "Core/PowerPC/JitCommon/TrampolineCache.h"
 
@@ -50,8 +50,8 @@
 
 #define FALLBACK_IF(cond) do { if (cond) { FallBackToInterpreter(inst); return; } } while (0)
 
-#define JITDISABLE(setting) FALLBACK_IF(SConfig::GetInstance().m_LocalCoreStartupParameter.bJITOff || \
-                                        SConfig::GetInstance().m_LocalCoreStartupParameter.setting)
+#define JITDISABLE(setting) FALLBACK_IF(SConfig::GetInstance().bJITOff || \
+                                        SConfig::GetInstance().setting)
 
 class JitBase : public CPUCoreBase
 {
@@ -61,6 +61,9 @@ protected:
 		bool enableBlocklink;
 		bool optimizeGatherPipe;
 		bool accurateSinglePrecision;
+		bool fastmem;
+		bool memcheck;
+		bool alwaysUseMemFuncs;
 	};
 	struct JitState
 	{
@@ -85,7 +88,6 @@ protected:
 		bool assumeNoPairedQuantize;
 		bool firstFPInstructionFound;
 		bool isLastInstruction;
-		bool memcheck;
 		int skipInstructions;
 		bool carryFlagSet;
 		bool carryFlagInverted;
@@ -106,6 +108,10 @@ protected:
 
 	PPCAnalyst::CodeBlock code_block;
 	PPCAnalyst::PPCAnalyzer analyzer;
+
+	bool MergeAllowedNextInstructions(int count);
+
+	void UpdateMemoryOptions();
 
 public:
 	// This should probably be removed from public:

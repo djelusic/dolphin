@@ -1,4 +1,8 @@
+// Copyright 2010 Dolphin Emulator Project
+// Licensed under GPLv2+
+// Refer to the license.txt file included.
 
+#include <algorithm>
 #include "VideoCommon/FramebufferManagerBase.h"
 #include "VideoCommon/RenderBase.h"
 #include "VideoCommon/VideoConfig.h"
@@ -55,8 +59,11 @@ const XFBSourceBase* const* FramebufferManagerBase::GetRealXFBSource(u32 xfbAddr
 		m_realXFBSource = nullptr;
 	}
 
-	if (!m_realXFBSource)
+	if (!m_realXFBSource && g_framebuffer_manager)
 		m_realXFBSource = g_framebuffer_manager->CreateXFBSource(fbWidth, fbHeight, 1);
+
+	if (!m_realXFBSource)
+		return nullptr;
 
 	m_realXFBSource->srcAddr = xfbAddr;
 
@@ -111,26 +118,32 @@ const XFBSourceBase* const* FramebufferManagerBase::GetVirtualXFBSource(u32 xfbA
 	return &m_overlappingXFBArray[0];
 }
 
-void FramebufferManagerBase::CopyToXFB(u32 xfbAddr, u32 fbWidth, u32 fbHeight, const EFBRectangle& sourceRc,float Gamma)
+void FramebufferManagerBase::CopyToXFB(u32 xfbAddr, u32 fbStride, u32 fbHeight, const EFBRectangle& sourceRc, float Gamma)
 {
 	if (g_ActiveConfig.bUseRealXFB)
-		g_framebuffer_manager->CopyToRealXFB(xfbAddr, fbWidth, fbHeight, sourceRc,Gamma);
+	{
+		if (g_framebuffer_manager)
+			g_framebuffer_manager->CopyToRealXFB(xfbAddr, fbStride, fbHeight, sourceRc, Gamma);
+	}
 	else
-		CopyToVirtualXFB(xfbAddr, fbWidth, fbHeight, sourceRc,Gamma);
+	{
+		CopyToVirtualXFB(xfbAddr, fbStride, fbHeight, sourceRc, Gamma);
+	}
 }
 
-void FramebufferManagerBase::CopyToVirtualXFB(u32 xfbAddr, u32 fbWidth, u32 fbHeight, const EFBRectangle& sourceRc,float Gamma)
+void FramebufferManagerBase::CopyToVirtualXFB(u32 xfbAddr, u32 fbStride, u32 fbHeight, const EFBRectangle& sourceRc, float Gamma)
 {
-	VirtualXFBListType::iterator vxfb = FindVirtualXFB(xfbAddr, fbWidth, fbHeight);
+	if (!g_framebuffer_manager)
+		return;
+
+	VirtualXFBListType::iterator vxfb = FindVirtualXFB(xfbAddr, sourceRc.GetWidth(), fbHeight);
 
 	if (m_virtualXFBList.end() == vxfb)
 	{
 		if (m_virtualXFBList.size() < MAX_VIRTUAL_XFB)
 		{
 			// create a new Virtual XFB and place it at the front of the list
-			VirtualXFB v;
-			memset(&v, 0, sizeof v);
-			m_virtualXFBList.push_front(v);
+			m_virtualXFBList.emplace_front();
 			vxfb = m_virtualXFBList.begin();
 		}
 		else
@@ -158,12 +171,15 @@ void FramebufferManagerBase::CopyToVirtualXFB(u32 xfbAddr, u32 fbWidth, u32 fbHe
 	if (!vxfb->xfbSource)
 	{
 		vxfb->xfbSource = g_framebuffer_manager->CreateXFBSource(target_width, target_height, m_EFBLayers);
+		if (!vxfb->xfbSource)
+			return;
+
 		vxfb->xfbSource->texWidth = target_width;
 		vxfb->xfbSource->texHeight = target_height;
 	}
 
 	vxfb->xfbSource->srcAddr = vxfb->xfbAddr = xfbAddr;
-	vxfb->xfbSource->srcWidth = vxfb->xfbWidth = fbWidth;
+	vxfb->xfbSource->srcWidth = vxfb->xfbWidth = sourceRc.GetWidth();
 	vxfb->xfbSource->srcHeight = vxfb->xfbHeight = fbHeight;
 
 	vxfb->xfbSource->sourceRc = g_renderer->ConvertEFBRectangle(sourceRc);
@@ -180,17 +196,12 @@ FramebufferManagerBase::VirtualXFBListType::iterator FramebufferManagerBase::Fin
 	const u32 srcLower = xfbAddr;
 	const u32 srcUpper = xfbAddr + 2 * width * height;
 
-	VirtualXFBListType::iterator it = m_virtualXFBList.begin();
-	for (; it != m_virtualXFBList.end(); ++it)
-	{
-		const u32 dstLower = it->xfbAddr;
-		const u32 dstUpper = it->xfbAddr + 2 * it->xfbWidth * it->xfbHeight;
+	return std::find_if(m_virtualXFBList.begin(), m_virtualXFBList.end(), [srcLower, srcUpper](const VirtualXFB& xfb) {
+		const u32 dstLower = xfb.xfbAddr;
+		const u32 dstUpper = xfb.xfbAddr + 2 * xfb.xfbWidth * xfb.xfbHeight;
 
-		if (dstLower >= srcLower && dstUpper <= srcUpper)
-			break;
-	}
-
-	return it;
+		return dstLower >= srcLower && dstUpper <= srcUpper;
+	});
 }
 
 void FramebufferManagerBase::ReplaceVirtualXFB()

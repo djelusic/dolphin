@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2010 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #include <string>
@@ -9,10 +9,10 @@
 #include <wx/combobox.h>
 #include <wx/notebook.h>
 #include <wx/panel.h>
+#include <wx/sizer.h>
 #include <wx/spinctrl.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
-#include <wx/wx.h>
 
 #include "Common/FileUtil.h"
 #include "Core/Core.h"
@@ -75,9 +75,6 @@ SoftwareVideoConfigDialog::SoftwareVideoConfigDialog(wxWindow* parent, const std
 		label_backend->Disable();
 		choice_backend->Disable();
 	}
-
-	// rasterizer
-	szr_rendering->Add(new SettingCheckBox(page_general, _("Hardware rasterization"), "", vconfig.bHwRasterizer));
 
 	// xfb
 	szr_rendering->Add(new SettingCheckBox(page_general, _("Bypass XFB"), "", vconfig.bBypassXFB));

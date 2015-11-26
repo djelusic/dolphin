@@ -1,11 +1,11 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2010 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 // ---------------------------------------------------------------------------------------------
 // GC graphics pipeline
 // ---------------------------------------------------------------------------------------------
-// 3d commands are issued through the fifo. The gpu draws to the 2MB EFB.
+// 3d commands are issued through the fifo. The GPU draws to the 2MB EFB.
 // The efb can be copied back into ram in two forms: as textures or as XFB.
 // The XFB is the region in RAM that the VI chip scans out to the television.
 // So, after all rendering to EFB is done, the image is copied into one of two XFBs in RAM.
@@ -14,8 +14,10 @@
 
 #pragma once
 
+#include <mutex>
 #include <string>
 
+#include "Common/Event.h"
 #include "Common/MathUtil.h"
 #include "Common/Thread.h"
 #include "VideoCommon/BPMemory.h"
@@ -25,6 +27,12 @@
 #include "VideoCommon/VideoCommon.h"
 
 class PostProcessingShaderImplementation;
+
+struct EfbPokeData
+{
+	u16 x,y;
+	u32 data;
+};
 
 // TODO: Move these out of here.
 extern int frameCount;
@@ -50,19 +58,22 @@ public:
 		PP_EFB_COPY_CLOCKS
 	};
 
-	virtual void SetColorMask() = 0;
-	virtual void SetBlendMode(bool forceUpdate) = 0;
-	virtual void SetScissorRect(const EFBRectangle& rc) = 0;
-	virtual void SetGenerationMode() = 0;
-	virtual void SetDepthMode() = 0;
-	virtual void SetLogicOpMode() = 0;
-	virtual void SetDitherMode() = 0;
-	virtual void SetSamplerState(int stage,int texindex) = 0;
-	virtual void SetInterlacingMode() = 0;
-	virtual void SetViewport() = 0;
+	virtual void SetColorMask() {}
+	virtual void SetBlendMode(bool forceUpdate) {}
+	virtual void SetScissorRect(const EFBRectangle& rc) {}
+	virtual void SetGenerationMode() {}
+	virtual void SetDepthMode() {}
+	virtual void SetLogicOpMode() {}
+	virtual void SetDitherMode() {}
+	virtual void SetSamplerState(int stage, int texindex, bool custom_tex) {}
+	virtual void SetInterlacingMode() {}
+	virtual void SetViewport() {}
 
-	virtual void ApplyState(bool bUseDstAlpha) = 0;
-	virtual void RestoreState() = 0;
+	virtual void ApplyState(bool bUseDstAlpha) {}
+	virtual void RestoreState() {}
+
+	virtual void ResetAPIState() {}
+	virtual void RestoreAPIState() {}
 
 	// Ideal internal resolution - determined by display resolution (automatic scaling) and/or a multiple of the native EFB resolution
 	static int GetTargetWidth() { return s_target_width; }
@@ -101,16 +112,13 @@ public:
 
 	virtual void ClearScreen(const EFBRectangle& rc, bool colorEnable, bool alphaEnable, bool zEnable, u32 color, u32 z) = 0;
 	virtual void ReinterpretPixelData(unsigned int convtype) = 0;
-	static void RenderToXFB(u32 xfbAddr, const EFBRectangle& sourceRc, u32 fbWidth, u32 fbHeight, float Gamma = 1.0f);
+	static void RenderToXFB(u32 xfbAddr, const EFBRectangle& sourceRc, u32 fbStride, u32 fbHeight, float Gamma = 1.0f);
 
 	virtual u32 AccessEFB(EFBAccessType type, u32 x, u32 y, u32 poke_data) = 0;
+	virtual void PokeEFB(EFBAccessType type, const std::vector<EfbPokeData>& data);
 
 	virtual u16 BBoxRead(int index) = 0;
 	virtual void BBoxWrite(int index, u16 value) = 0;
-
-	// What's the real difference between these? Too similar names.
-	virtual void ResetAPIState() = 0;
-	virtual void RestoreAPIState() = 0;
 
 	// Finish up the current frame, print some stats
 	static void Swap(u32 xfbAddr, u32 fbWidth, u32 fbStride, u32 fbHeight, const EFBRectangle& rc,float Gamma = 1.0f);
@@ -124,6 +132,8 @@ public:
 	PostProcessingShaderImplementation* GetPostProcessor() { return m_post_processor; }
 	// Max height/width
 	virtual int GetMaxTextureSize() = 0;
+
+	static Common::Event s_screenshotCompleted;
 
 protected:
 

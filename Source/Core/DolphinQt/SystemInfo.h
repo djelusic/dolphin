@@ -1,5 +1,5 @@
 // Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
@@ -12,7 +12,7 @@ namespace Ui
 class DSystemInfo;
 }
 
-class DSystemInfo : public QDialog
+class DSystemInfo final : public QDialog
 {
 	Q_OBJECT
 

@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2009 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #include "Common/FileUtil.h"
@@ -14,7 +14,6 @@ SWVideoConfig::SWVideoConfig()
 	bHideCursor = false;
 	renderToMainframe = false;
 
-	bHwRasterizer = false;
 	bBypassXFB = false;
 
 	bShowStats = false;
@@ -42,7 +41,6 @@ void SWVideoConfig::Load(const char* ini_file)
 	hardware->Get("RenderToMainframe", &renderToMainframe, false);
 
 	IniFile::Section* rendering = iniFile.GetOrCreateSection("Rendering");
-	rendering->Get("HwRasterizer", &bHwRasterizer, false);
 	rendering->Get("BypassXFB", &bBypassXFB, false);
 	rendering->Get("ZComploc", &bZComploc, true);
 	rendering->Get("ZFreeze", &bZFreeze, true);
@@ -71,7 +69,6 @@ void SWVideoConfig::Save(const char* ini_file)
 	hardware->Set("RenderToMainframe", renderToMainframe);
 
 	IniFile::Section* rendering = iniFile.GetOrCreateSection("Rendering");
-	rendering->Set("HwRasterizer", bHwRasterizer);
 	rendering->Set("BypassXFB", bBypassXFB);
 	rendering->Set("ZComploc", bZComploc);
 	rendering->Set("ZFreeze", bZFreeze);

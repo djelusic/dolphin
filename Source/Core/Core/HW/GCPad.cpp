@@ -1,7 +1,8 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2010 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
+#include "Common/Common.h"
 #include "Common/CommonTypes.h"
 
 #include "Core/ConfigManager.h"
@@ -10,7 +11,6 @@
 #include "InputCommon/GCPadStatus.h"
 #include "InputCommon/InputConfig.h"
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
-
 
 namespace Pad
 {
@@ -23,70 +23,56 @@ InputConfig* GetConfig()
 
 void Shutdown()
 {
-	std::vector<ControllerEmu*>::const_iterator
-		i = s_config.controllers.begin(),
-		e = s_config.controllers.end();
-	for ( ; i!=e; ++i )
-		delete *i;
-	s_config.controllers.clear();
+	s_config.ClearControllers();
 
 	g_controller_interface.Shutdown();
 }
 
-// if plugin isn't initialized, init and load config
 void Initialize(void* const hwnd)
 {
-	// add 4 gcpads
-	for (unsigned int i=0; i<4; ++i)
-		s_config.controllers.push_back(new GCPad(i));
+	if (s_config.ControllersNeedToBeCreated())
+	{
+		for (unsigned int i = 0; i < 4; ++i)
+			s_config.CreateController<GCPad>(i);
+	}
 
 	g_controller_interface.Initialize(hwnd);
 
-	// load the saved controller config
+	// Load the saved controller config
 	s_config.LoadConfig(true);
 }
 
-void GetStatus(u8 _numPAD, GCPadStatus* _pPADStatus)
+void LoadConfig()
 {
-	memset(_pPADStatus, 0, sizeof(*_pPADStatus));
-	_pPADStatus->err = PAD_ERR_NONE;
+	s_config.LoadConfig(true);
+}
 
-	std::unique_lock<std::recursive_mutex> lk(s_config.controls_lock, std::try_to_lock);
 
-	if (!lk.owns_lock())
+void GetStatus(u8 pad_num, GCPadStatus* pad_status)
+{
+	memset(pad_status, 0, sizeof(*pad_status));
+	pad_status->err = PAD_ERR_NONE;
+
+	// If we are on the next input cycle, update output and input
+	static int last_pad_num = 4;
+	if (pad_num <= last_pad_num)
 	{
-		// if gui has lock (messing with controls), skip this input cycle
-		// center axes and return
-		_pPADStatus->stickX = GCPadStatus::MAIN_STICK_CENTER_X;
-		_pPADStatus->stickY = GCPadStatus::MAIN_STICK_CENTER_Y;
-		_pPADStatus->substickX = GCPadStatus::C_STICK_CENTER_X;
-		_pPADStatus->substickY = GCPadStatus::C_STICK_CENTER_Y;
-		return;
+		g_controller_interface.UpdateInput();
 	}
+	last_pad_num = pad_num;
 
-	// get input
-	((GCPad*)s_config.controllers[_numPAD])->GetInput(_pPADStatus);
+	// Get input
+	static_cast<GCPad*>(s_config.GetController(pad_num))->GetInput(pad_status);
 }
 
-void Rumble(u8 _numPAD, const ControlState strength)
+void Rumble(const u8 pad_num, const ControlState strength)
 {
-	std::unique_lock<std::recursive_mutex> lk(s_config.controls_lock, std::try_to_lock);
-
-	if (!lk.owns_lock())
-		return;
-
-	((GCPad*)s_config.controllers[ _numPAD ])->SetOutput(strength);
+	static_cast<GCPad*>(s_config.GetController(pad_num))->SetOutput(strength);
 }
 
-bool GetMicButton(u8 pad)
+bool GetMicButton(const u8 pad_num)
 {
-
-	std::unique_lock<std::recursive_mutex> lk(s_config.controls_lock, std::try_to_lock);
-
-	if (!lk.owns_lock())
-		return false;
-
-	return ((GCPad*)s_config.controllers[pad])->GetMicButton();
+	return static_cast<GCPad*>(s_config.GetController(pad_num))->GetMicButton();
 }
 
 }

@@ -1,9 +1,10 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2008 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include "VideoCommon/TextureDecoder.h"
@@ -12,20 +13,23 @@
 class HiresTexture
 {
 public:
-	static void Init(const std::string& gameCode);
+	static void Init();
+	static void Update();
+	static void Shutdown();
 
-	static HiresTexture* Search(
+	static std::shared_ptr<HiresTexture> Search(
 		const u8* texture, size_t texture_size,
 		const u8* tlut, size_t tlut_size,
 		u32 width, u32 height,
-		int format
+		int format, bool has_mipmaps
 	);
 
 	static std::string GenBaseName(
 		const u8* texture, size_t texture_size,
 		const u8* tlut, size_t tlut_size,
 		u32 width, u32 height,
-		int format
+		int format, bool has_mipmaps,
+		bool dump = false
 	);
 
 	~HiresTexture();
@@ -38,9 +42,10 @@ public:
 	};
 	std::vector<Level> m_levels;
 
-	static std::unordered_map<std::string, std::string> textureMap;
-
 private:
+	static HiresTexture* Load(const std::string& base_filename, u32 width, u32 height);
+	static void Prefetch();
+
 	HiresTexture() {}
 
 };

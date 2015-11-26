@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2009 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 /*
@@ -58,7 +58,7 @@ namespace Clipper
 
 	void DoState(PointerWrap &p)
 	{
-		p.DoArray(m_ViewOffset,2);
+		p.DoArray(m_ViewOffset);
 		for (auto& ClippedVertice : ClippedVertices)
 			ClippedVertice.DoState(p);
 	}

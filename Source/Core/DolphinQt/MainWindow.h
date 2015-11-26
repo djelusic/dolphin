@@ -1,5 +1,5 @@
 // Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
@@ -18,7 +18,7 @@ namespace Ui
 class DMainWindow;
 }
 
-class DMainWindow : public QMainWindow
+class DMainWindow final : public QMainWindow
 {
 	Q_OBJECT
 
@@ -43,30 +43,31 @@ private slots:
 	void OnCoreStateChanged(Core::EState state);
 
 	// Main toolbar
-	void OnOpen();
+	void OnBrowse();
 	void OnPlay();
+	void OnReset();
 
 	// View menu
 	void OnGameListStyleChanged();
-
-	// Help menu
-	void OnOpenWebsite();
-	void OnOpenDocs();
-	void OnOpenGitHub();
-	void OnOpenSystemInfo();
-	void OnOpenAbout();
 
 	// Misc.
 	void UpdateIcons();
 
 private:
+	bool event(QEvent* e) override;
+	void closeEvent(QCloseEvent* ce) override;
 	std::unique_ptr<Ui::DMainWindow> m_ui;
 	DGameTracker* m_game_tracker;
 
+	// Misc.
+	void DisableScreensaver();
+	void EnableScreensaver();
 	// Emulation
 	QString RequestBootFilename();
 	QString ShowFileDialog();
+	QString ShowFolderDialog();
 	void DoStartPause();
+	bool Stop();
 
 	std::unique_ptr<DRenderWidget> m_render_widget;
 	bool m_isStopping = false;

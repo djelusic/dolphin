@@ -1,5 +1,5 @@
-// Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2012 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
@@ -32,8 +32,11 @@ public:
 	 * Can be used like printf.
 	 * @note In the ShaderCode implementation, this does indeed write the parameter string to an internal buffer. However, you're free to do whatever you like with the parameter.
 	 */
-	template<typename... Args>
-	void Write(const char*, Args...) {}
+	void Write(const char*, ...)
+#ifdef __GNUC__
+	__attribute__((format(printf, 2, 3)))
+#endif
+	{}
 
 	/*
 	 * Returns a read pointer to the internal buffer.
@@ -113,10 +116,12 @@ class ShaderCode : public ShaderGeneratorInterface
 public:
 	ShaderCode() : buf(nullptr), write_ptr(nullptr)
 	{
-
 	}
 
 	void Write(const char* fmt, ...)
+#ifdef __GNUC__
+	__attribute__((format(printf, 2, 3)))
+#endif
 	{
 		va_list arglist;
 		va_start(arglist, fmt);
@@ -142,7 +147,7 @@ public:
 
 	inline void SetConstantsUsed(unsigned int first_index, unsigned int last_index)
 	{
-		for (unsigned int i = first_index; i < last_index+1; ++i)
+		for (unsigned int i = first_index; i < last_index + 1; ++i)
 			constant_usage[i] = true;
 	}
 
@@ -198,7 +203,7 @@ public:
 					u8 value = new_uid.GetUidDataRaw()[i];
 					if ((i % 4) == 0)
 					{
-						auto last_value = (i+3 < new_uid.GetUidDataSize()-1) ? i+3 : new_uid.GetUidDataSize();
+						auto last_value = (i + 3 < new_uid.GetUidDataSize() - 1) ? i + 3 : new_uid.GetUidDataSize();
 						file << std::setfill(' ') << std::dec;
 						file << "Values " << std::setw(2) << i << " - " << last_value << ": ";
 					}
@@ -216,7 +221,7 @@ public:
 	}
 
 private:
-	std::map<UidT,std::string> m_shaders;
+	std::map<UidT, std::string> m_shaders;
 	std::vector<UidT> m_uids;
 };
 
@@ -280,6 +285,29 @@ static inline void AssignVSOutputMembers(T& object, const char* a, const char* b
 	}
 }
 
+// We use the flag "centroid" to fix some MSAA rendering bugs. With MSAA, the
+// pixel shader will be executed for each pixel which has at least one passed sample.
+// So there may be rendered pixels where the center of the pixel isn't in the primitive.
+// As the pixel shader usually renders at the center of the pixel, this position may be
+// outside the primitive. This will lead to sampling outside the texture, sign changes, ...
+// As a workaround, we interpolate at the centroid of the coveraged pixel, which
+// is always inside the primitive.
+// Without MSAA, this flag is defined to have no effect.
+static inline const char* GetInterpolationQualifier(API_TYPE api_type, bool in = true, bool in_out = false)
+{
+	if (!g_ActiveConfig.iMultisampleMode)
+		return "";
+
+	if (!g_ActiveConfig.bSSAA)
+	{
+		if (in_out && api_type == API_OPENGL && !g_ActiveConfig.backend_info.bSupportsBindingLayout)
+			return in ? "centroid in" : "centroid out";
+		return "centroid";
+	}
+
+	return "sample";
+}
+
 // Constant variable names
 #define I_COLORS        "color"
 #define I_KCOLORS       "k"
@@ -291,6 +319,8 @@ static inline void AssignVSOutputMembers(T& object, const char* a, const char* b
 #define I_FOGCOLOR      "cfogcolor"
 #define I_FOGI          "cfogi"
 #define I_FOGF          "cfogf"
+#define I_ZSLOPE        "czslope"
+#define I_EFBSCALE      "cefbscale"
 
 #define I_POSNORMALMATRIX       "cpnmtx"
 #define I_PROJECTION            "cproj"

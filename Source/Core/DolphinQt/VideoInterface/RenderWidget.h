@@ -1,12 +1,12 @@
 // Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
 
 #include <QWidget>
 
-class DRenderWidget : public QWidget
+class DRenderWidget final : public QWidget
 {
 	Q_OBJECT
 
@@ -19,10 +19,7 @@ protected:
 	void mousePressEvent(QMouseEvent*) override {}
 	void paintEvent(QPaintEvent*) override {}
 
-private slots:
+private:
 	void closeEvent(QCloseEvent* e) override;
-
-signals:
-	void Closed();
 };
 

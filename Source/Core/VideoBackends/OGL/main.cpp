@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2008 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 
@@ -41,7 +41,10 @@ Make AA apply instantly during gameplay if possible
 
 #include "Common/Atomic.h"
 #include "Common/CommonPaths.h"
+#include "Common/FileSearch.h"
 #include "Common/Thread.h"
+#include "Common/GL/GLInterfaceBase.h"
+#include "Common/GL/GLUtil.h"
 #include "Common/Logging/LogManager.h"
 
 #include "Core/ConfigManager.h"
@@ -50,8 +53,6 @@ Make AA apply instantly during gameplay if possible
 
 #include "VideoBackends/OGL/BoundingBox.h"
 #include "VideoBackends/OGL/FramebufferManager.h"
-#include "VideoBackends/OGL/GLInterfaceBase.h"
-#include "VideoBackends/OGL/GLUtil.h"
 #include "VideoBackends/OGL/PerfQuery.h"
 #include "VideoBackends/OGL/PostProcessing.h"
 #include "VideoBackends/OGL/ProgramShaderCache.h"
@@ -82,6 +83,12 @@ Make AA apply instantly during gameplay if possible
 namespace OGL
 {
 
+// Draw messages on top of the screen
+unsigned int VideoBackend::PeekMessages()
+{
+	return GLInterface->PeekMessages();
+}
+
 std::string VideoBackend::GetName() const
 {
 	return "OGL";
@@ -95,66 +102,52 @@ std::string VideoBackend::GetDisplayName() const
 		return "OpenGL";
 }
 
-static void GetShaders(std::vector<std::string> &shaders)
+std::string VideoBackend::GetConfigName() const
 {
-	std::set<std::string> already_found;
+	return "gfx_opengl";
+}
 
-	shaders.clear();
-	static const std::string directories[] = {
-		File::GetUserPath(D_SHADERS_IDX),
-		File::GetSysDirectory() + SHADERS_DIR DIR_SEP,
-	};
-	for (auto& directory : directories)
+static std::vector<std::string> GetShaders(const std::string &sub_dir = "")
+{
+	std::vector<std::string> paths = DoFileSearch({".glsl"}, {
+		File::GetUserPath(D_SHADERS_IDX) + sub_dir,
+		File::GetSysDirectory() + SHADERS_DIR DIR_SEP + sub_dir
+	});
+	std::vector<std::string> result;
+	for (std::string path : paths)
 	{
-		if (!File::IsDirectory(directory))
-			continue;
-
-		File::FSTEntry entry;
-		File::ScanDirectoryTree(directory, entry);
-		for (auto& file : entry.children)
-		{
-			std::string name = file.virtualName;
-			if (name.size() < 5)
-				continue;
-			if (strcasecmp(name.substr(name.size() - 5).c_str(), ".glsl"))
-				continue;
-
-			name = name.substr(0, name.size() - 5);
-			if (already_found.find(name) != already_found.end())
-				continue;
-
-			already_found.insert(name);
-			shaders.push_back(name);
-		}
+		std::string name;
+		SplitPath(path, nullptr, &name, nullptr);
+		result.push_back(name);
 	}
-	std::sort(shaders.begin(), shaders.end());
+	return result;
 }
 
 static void InitBackendInfo()
 {
 	g_Config.backend_info.APIType = API_OPENGL;
 	g_Config.backend_info.bSupportsExclusiveFullscreen = false;
-	//g_Config.backend_info.bSupportsDualSourceBlend = true; // is gpu dependent and must be set in renderer
-	//g_Config.backend_info.bSupportsEarlyZ = true; // is gpu dependent and must be set in renderer
 	g_Config.backend_info.bSupportsOversizedViewports = true;
 	g_Config.backend_info.bSupportsGeometryShaders = true;
 	g_Config.backend_info.bSupports3DVision = false;
+	g_Config.backend_info.bSupportsPostProcessing = true;
+	g_Config.backend_info.bSupportsSSAA = true;
 
 	g_Config.backend_info.Adapters.clear();
 
-	// aamodes
-	const char* caamodes[] = {_trans("None"), "2x", "4x", "8x", "4x SSAA"};
-	g_Config.backend_info.AAModes.assign(caamodes, caamodes + sizeof(caamodes)/sizeof(*caamodes));
+	// aamodes - 1 is to stay consistent with D3D (means no AA)
+	g_Config.backend_info.AAModes = { 1, 2, 4, 8 };
 
 	// pp shaders
-	GetShaders(g_Config.backend_info.PPShaders);
+	g_Config.backend_info.PPShaders = GetShaders("");
+	g_Config.backend_info.AnaglyphShaders = GetShaders(ANAGLYPH_DIR DIR_SEP);
 }
 
 void VideoBackend::ShowConfig(void *_hParent)
 {
 	if (!s_BackendInitialized)
 		InitBackendInfo();
-	Host_ShowVideoConfig(_hParent, GetDisplayName(), "gfx_opengl");
+	Host_ShowVideoConfig(_hParent, GetDisplayName(), GetConfigName());
 }
 
 bool VideoBackend::Initialize(void *window_handle)
@@ -164,7 +157,7 @@ bool VideoBackend::Initialize(void *window_handle)
 
 	frameCount = 0;
 
-	g_Config.Load(File::GetUserPath(D_CONFIG_IDX) + "gfx_opengl.ini");
+	g_Config.Load(File::GetUserPath(D_CONFIG_IDX) + GetConfigName() + ".ini");
 	g_Config.GameIniLoad();
 	g_Config.UpdateProjectionHack();
 	g_Config.VerifyValidity();
@@ -196,7 +189,7 @@ void VideoBackend::Video_Prepare()
 
 	BPInit();
 	g_vertex_manager = new VertexManager;
-	g_perf_query = new PerfQuery;
+	g_perf_query = GetPerfQuery();
 	Fifo_Init(); // must be done before OpcodeDecoder_Init()
 	OpcodeDecoder_Init();
 	IndexGenerator::Init();
@@ -223,6 +216,8 @@ void VideoBackend::Shutdown()
 	OSD::DoCallbacks(OSD::OSD_SHUTDOWN);
 
 	GLInterface->Shutdown();
+	delete GLInterface;
+	GLInterface = nullptr;
 }
 
 void VideoBackend::Video_Cleanup()

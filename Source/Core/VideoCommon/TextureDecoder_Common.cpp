@@ -1,21 +1,24 @@
 // Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <cmath>
 
-#include "Common/Common.h"
-
+#include "Common/CommonFuncs.h"
+#include "Common/CommonTypes.h"
+#include "Common/MsgHandler.h"
+#include "Common/Logging/Log.h"
 #include "VideoCommon/LookUpTables.h"
 #include "VideoCommon/sfont.inc"
 #include "VideoCommon/TextureDecoder.h"
 
-static bool TexFmt_Overlay_Enable=false;
-static bool TexFmt_Overlay_Center=false;
+static bool TexFmt_Overlay_Enable = false;
+static bool TexFmt_Overlay_Center = false;
 
 // TRAM
 // STATE_TO_SAVE
-GC_ALIGNED16(u8 texMem[TMEM_SIZE]);
+alignas(16) u8 texMem[TMEM_SIZE];
 
 int TexDecoder_GetTexelSizeInNibbles(int format)
 {
@@ -34,7 +37,6 @@ int TexDecoder_GetTexelSizeInNibbles(int format)
 	case GX_CTF_R4:    return 1;
 	case GX_CTF_RA4:   return 2;
 	case GX_CTF_RA8:   return 4;
-	case GX_CTF_YUVA8: return 8;
 	case GX_CTF_A8:    return 2;
 	case GX_CTF_R8:    return 2;
 	case GX_CTF_G8:    return 2;
@@ -47,10 +49,14 @@ int TexDecoder_GetTexelSizeInNibbles(int format)
 	case GX_TF_Z24X8:  return 8;
 
 	case GX_CTF_Z4:    return 1;
+	case GX_CTF_Z8H:   return 2;
 	case GX_CTF_Z8M:   return 2;
 	case GX_CTF_Z8L:   return 2;
+	case GX_CTF_Z16R:  return 4;
 	case GX_CTF_Z16L:  return 4;
-	default: return 1;
+	default:
+		PanicAlert("Unsupported Texture Format (%08x)! (GetTexelSizeInNibbles)", format);
+		return 1;
 	}
 }
 
@@ -87,11 +93,13 @@ int TexDecoder_GetBlockWidthInTexels(u32 format)
 	case GX_TF_Z16: return 4;
 	case GX_TF_Z24X8: return 4;
 	case GX_CTF_Z4: return 8;
+	case GX_CTF_Z8H: return 8;
 	case GX_CTF_Z8M: return 8;
 	case GX_CTF_Z8L: return 8;
+	case GX_CTF_Z16R: return 4;
 	case GX_CTF_Z16L: return 4;
 	default:
-		ERROR_LOG(VIDEO, "Unsupported Texture Format (%08x)! (GetBlockWidthInTexels)", format);
+		PanicAlert("Unsupported Texture Format (%08x)! (GetBlockWidthInTexels)", format);
 		return 8;
 	}
 }
@@ -124,11 +132,13 @@ int TexDecoder_GetBlockHeightInTexels(u32 format)
 	case GX_TF_Z16: return 4;
 	case GX_TF_Z24X8: return 4;
 	case GX_CTF_Z4: return 8;
+	case GX_CTF_Z8H: return 4;
 	case GX_CTF_Z8M: return 4;
 	case GX_CTF_Z8L: return 4;
+	case GX_CTF_Z16R: return 4;
 	case GX_CTF_Z16L: return 4;
 	default:
-		ERROR_LOG(VIDEO, "Unsupported Texture Format (%08x)! (GetBlockHeightInTexels)", format);
+		PanicAlert("Unsupported Texture Format (%08x)! (GetBlockHeightInTexels)", format);
 		return 4;
 	}
 }
@@ -175,7 +185,7 @@ static const char* texfmt[] = {
 	"CZ16L",   "0x3D",    "0x3E",    "0x3F",
 };
 
-static void TexDecoder_DrawOverlay(u8 *dst, int width, int height, int texformat, PC_TexFormat pc_texformat)
+static void TexDecoder_DrawOverlay(u8 *dst, int width, int height, int texformat)
 {
 	int w = std::min(width, 40);
 	int h = std::min(height, 10);
@@ -185,11 +195,11 @@ static void TexDecoder_DrawOverlay(u8 *dst, int width, int height, int texformat
 
 	if (!TexFmt_Overlay_Center)
 	{
-		xoff=0;
-		yoff=0;
+		xoff = 0;
+		yoff = 0;
 	}
 
-	const char* fmt = texfmt[texformat&15];
+	const char* fmt = texfmt[texformat & 15];
 	while (*fmt)
 	{
 		int xcnt = 0;
@@ -197,47 +207,19 @@ static void TexDecoder_DrawOverlay(u8 *dst, int width, int height, int texformat
 
 		const unsigned char *ptr = sfont_raw[nchar]; // each char is up to 9x10
 
-		for (int x = 0; x < 9;x++)
+		for (int x = 0; x < 9; x++)
 		{
 			if (ptr[x] == 0x78)
 				break;
 			xcnt++;
 		}
 
-		for (int y=0; y < 10; y++)
+		for (int y = 0; y < 10; y++)
 		{
-			for (int x=0; x < xcnt; x++)
+			for (int x = 0; x < xcnt; x++)
 			{
-				switch (pc_texformat)
-				{
-				case PC_TEX_FMT_I8:
-				{
-					// TODO: Is this an acceptable way to draw in I8?
-					u8  *dtp = (u8*)dst;
-					dtp[(y + yoff) * width + x + xoff] = ptr[x] ? 0xFF : 0x88;
-					break;
-				}
-				case PC_TEX_FMT_IA8:
-				case PC_TEX_FMT_IA4_AS_IA8:
-				{
-					u16  *dtp = (u16*)dst;
-					dtp[(y + yoff) * width + x + xoff] = ptr[x] ? 0xFFFF : 0xFF00;
-					break;
-				}
-				case PC_TEX_FMT_RGB565:
-				{
-					u16  *dtp = (u16*)dst;
-					dtp[(y + yoff)*width + x + xoff] = ptr[x] ? 0xFFFF : 0x0000;
-					break;
-				}
-				default:
-				case PC_TEX_FMT_BGRA32:
-				{
-					int  *dtp = (int*)dst;
-					dtp[(y + yoff) * width + x + xoff] = ptr[x] ? 0xFFFFFFFF : 0xFF000000;
-					break;
-				}
-				}
+				int  *dtp = (int*)dst;
+				dtp[(y + yoff) * width + x + xoff] = ptr[x] ? 0xFFFFFFFF : 0xFF000000;
 			}
 			ptr += 9;
 		}
@@ -246,21 +228,19 @@ static void TexDecoder_DrawOverlay(u8 *dst, int width, int height, int texformat
 	}
 }
 
-PC_TexFormat TexDecoder_Decode(u8 *dst, const u8 *src, int width, int height, int texformat, const u8* tlut, TlutFormat tlutfmt)
+void TexDecoder_Decode(u8 *dst, const u8 *src, int width, int height, int texformat, const u8* tlut, TlutFormat tlutfmt)
 {
-	PC_TexFormat pc_texformat = _TexDecoder_DecodeImpl((u32*)dst, src, width, height, texformat, tlut, tlutfmt);
+	_TexDecoder_DecodeImpl((u32*)dst, src, width, height, texformat, tlut, tlutfmt);
 
-	if (TexFmt_Overlay_Enable && pc_texformat != PC_TEX_FMT_NONE)
-		TexDecoder_DrawOverlay(dst, width, height, texformat, pc_texformat);
-
-	return pc_texformat;
+	if (TexFmt_Overlay_Enable)
+		TexDecoder_DrawOverlay(dst, width, height, texformat);
 }
 
 static inline u32 DecodePixel_IA8(u16 val)
 {
 	int a = val & 0xFF;
 	int i = val >> 8;
-	return i | (i<<8) | (i<<16) | (a<<24);
+	return i | (i << 8) | (i << 16) | (a << 24);
 }
 
 static inline u32 DecodePixel_RGB565(u16 val)
@@ -604,15 +584,15 @@ void TexDecoder_DecodeTexelRGBA8FromTmem(u8 *dst, const u8 *src_ar, const u8* sr
 	dst[2] = val_addr_gb[1]; // B
 }
 
-PC_TexFormat TexDecoder_DecodeRGBA8FromTmem(u8* dst, const u8 *src_ar, const u8 *src_gb, int width, int height)
+void TexDecoder_DecodeRGBA8FromTmem(u8* dst, const u8 *src_ar, const u8 *src_gb, int width, int height)
 {
 	// TODO for someone who cares: Make this less slow!
 	for (int y = 0; y < height; ++y)
+	{
 		for (int x = 0; x < width; ++x)
 		{
 			TexDecoder_DecodeTexelRGBA8FromTmem(dst, src_ar, src_gb, x, y, width-1);
 			dst += 4;
 		}
-
-	return PC_TEX_FMT_RGBA32;
+	}
 }

@@ -1,13 +1,12 @@
 // Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
+
+#include <memory>
 
 #include "ui_GameTree.h"
 
-#include "Common/StdMakeUnique.h"
-
 #include "DolphinQt/GameList/GameTree.h"
-
 #include "DolphinQt/Utils/Resources.h"
 #include "DolphinQt/Utils/Utils.h"
 
@@ -23,9 +22,9 @@ DGameTree::DGameTree(QWidget* parent_widget) :
 
 	SetViewStyle(STYLE_TREE);
 	setIconSize(QSize(BANNER_WIDTH, BANNER_HEIGHT));
-	sortByColumn(COL_TITLE);
+	sortByColumn(COL_TITLE, Qt::AscendingOrder);
 
-	connect(this, SIGNAL(itemActivated(QTreeWidgetItem*, int)), this, SLOT(ItemActivated(QTreeWidgetItem*)));
+	connect(this, &QTreeWidget::itemActivated, this, &DGameTree::ItemActivated);
 }
 
 DGameTree::~DGameTree()
@@ -110,7 +109,7 @@ void DGameTree::AddGame(GameFile* item)
 	QTreeWidgetItem* i = new QTreeWidgetItem;
 	i->setIcon(COL_TYPE, QIcon(Resources::GetPlatformPixmap(item->GetPlatform())));
 	i->setIcon(COL_BANNER, QIcon(item->GetBitmap()));
-	i->setText(COL_TITLE, item->GetName(0));
+	i->setText(COL_TITLE, item->GetName(true));
 	i->setText(COL_DESCRIPTION, item->GetDescription());
 	i->setIcon(COL_REGION, QIcon(Resources::GetRegionPixmap(item->GetCountry())));
 	i->setText(COL_SIZE, NiceSizeFormat(item->GetFileSize()));

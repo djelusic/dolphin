@@ -1,10 +1,12 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2008 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
 
-#include "Common/Common.h"
+#include <cstring>
+#include "Common/CommonFuncs.h"
+#include "Common/CommonTypes.h"
 
 class DataReader
 {
@@ -15,9 +17,9 @@ public:
 	__forceinline DataReader(u8* src, u8* _end)
 	: buffer(src), end(_end) {}
 
-	__forceinline void WritePointer(u8** src)
+	__forceinline u8* GetPointer()
 	{
-		*src = buffer;
+		return buffer;
 	}
 
 	__forceinline u8* operator=(u8* src)
@@ -33,9 +35,12 @@ public:
 
 	template <typename T, bool swapped = true> __forceinline T Peek(int offset = 0)
 	{
-		T data = *(T*)(buffer + offset);
+		T data;
+		std::memcpy(&data, &buffer[offset], sizeof(T));
+
 		if (swapped)
 			data = Common::FromBigEndian(data);
+
 		return data;
 	}
 
@@ -50,7 +55,8 @@ public:
 	{
 		if (swapped)
 			data = Common::FromBigEndian(data);
-		*(T*)(buffer) = data;
+
+		std::memcpy(buffer, &data, sizeof(T));
 		buffer += sizeof(T);
 	}
 

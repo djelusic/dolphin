@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2008 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #include <string>
@@ -64,6 +64,11 @@ std::string VideoBackend::GetDisplayName() const
 	return "Direct3D";
 }
 
+std::string VideoBackend::GetConfigName() const
+{
+	return "gfx_dx11";
+}
+
 void InitBackendInfo()
 {
 	HRESULT hr = DX11::D3D::LoadDXGI();
@@ -81,6 +86,9 @@ void InitBackendInfo()
 	g_Config.backend_info.bSupportsOversizedViewports = false;
 	g_Config.backend_info.bSupportsGeometryShaders = true;
 	g_Config.backend_info.bSupports3DVision = true;
+	g_Config.backend_info.bSupportsPostProcessing = false;
+	g_Config.backend_info.bSupportsPaletteConversion = true;
+	g_Config.backend_info.bSupportsClipControl = true;
 
 	IDXGIFactory* factory;
 	IDXGIAdapter* ad;
@@ -103,16 +111,10 @@ void InitBackendInfo()
 		{
 			std::string samples;
 			std::vector<DXGI_SAMPLE_DESC> modes = DX11::D3D::EnumAAModes(ad);
+			// First iteration will be 1. This equals no AA.
 			for (unsigned int i = 0; i < modes.size(); ++i)
 			{
-				if (i == 0)
-					samples = _trans("None");
-				else if (modes[i].Quality)
-					samples = StringFromFormat(_trans("%d samples (quality level %d)"), modes[i].Count, modes[i].Quality);
-				else
-					samples = StringFromFormat(_trans("%d samples"), modes[i].Count);
-
-				g_Config.backend_info.AAModes.push_back(samples);
+				g_Config.backend_info.AAModes.push_back(modes[i].Count);
 			}
 
 			bool shader_model_5_supported = (DX11::D3D::GetFeatureLevel(ad) >= D3D_FEATURE_LEVEL_11_0);
@@ -125,6 +127,9 @@ void InitBackendInfo()
 
 			// Requires the instance attribute (only available in shader model 5)
 			g_Config.backend_info.bSupportsGSInstancing = shader_model_5_supported;
+
+			// Sample shading requires shader model 5
+			g_Config.backend_info.bSupportsSSAA = shader_model_5_supported;
 		}
 		g_Config.backend_info.Adapters.push_back(UTF16ToUTF8(desc.Description));
 		ad->Release();
@@ -133,6 +138,7 @@ void InitBackendInfo()
 
 	// Clear ppshaders string vector
 	g_Config.backend_info.PPShaders.clear();
+	g_Config.backend_info.AnaglyphShaders.clear();
 
 	DX11::D3D::UnloadDXGI();
 	DX11::D3D::UnloadD3D();
@@ -141,7 +147,7 @@ void InitBackendInfo()
 void VideoBackend::ShowConfig(void *hParent)
 {
 	InitBackendInfo();
-	Host_ShowVideoConfig(hParent, GetDisplayName(), "gfx_dx11");
+	Host_ShowVideoConfig(hParent, GetDisplayName(), GetConfigName());
 }
 
 bool VideoBackend::Initialize(void *window_handle)
@@ -154,7 +160,7 @@ bool VideoBackend::Initialize(void *window_handle)
 
 	frameCount = 0;
 
-	g_Config.Load(File::GetUserPath(D_CONFIG_IDX) + "gfx_dx11.ini");
+	g_Config.Load(File::GetUserPath(D_CONFIG_IDX) + GetConfigName() + ".ini");
 	g_Config.GameIniLoad();
 	g_Config.UpdateProjectionHack();
 	g_Config.VerifyValidity();

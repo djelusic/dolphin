@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2008 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 // This file is UGLY (full of #ifdef) so that it can be used with both GC and
@@ -78,31 +78,17 @@ union AXBuffers
 };
 
 // Read a PB from MRAM/ARAM
-bool ReadPB(u32 addr, PB_TYPE& pb)
+void ReadPB(u32 addr, PB_TYPE& pb)
 {
 	u16* dst = (u16*)&pb;
-	const u16* src = (const u16*)Memory::GetPointer(addr);
-	if (!src)
-		return false;
-
-	for (u32 i = 0; i < sizeof (pb) / sizeof (u16); ++i)
-		dst[i] = Common::swap16(src[i]);
-
-	return true;
+	Memory::CopyFromEmuSwapped<u16>(dst, addr, sizeof(pb));
 }
 
 // Write a PB back to MRAM/ARAM
-bool WritePB(u32 addr, const PB_TYPE& pb)
+void WritePB(u32 addr, const PB_TYPE& pb)
 {
 	const u16* src = (const u16*)&pb;
-	u16* dst = (u16*)Memory::GetPointer(addr);
-	if (!dst)
-		return false;
-
-	for (u32 i = 0; i < sizeof (pb) / sizeof (u16); ++i)
-		dst[i] = Common::swap16(src[i]);
-
-	return true;
+	Memory::CopyToEmuSwapped<u16>(addr, src, sizeof(pb));
 }
 
 #if 0
@@ -185,7 +171,7 @@ u16 AcceleratorGetSample()
 				temp -= 16;
 
 			int val = (scale * temp) + ((0x400 + coef1 * acc_pb->adpcm.yn1 + coef2 * acc_pb->adpcm.yn2) >> 11);
-			MathUtil::Clamp(&val, -0x7FFF, 0x7FFF);
+			val = MathUtil::Clamp(val, -0x7FFF, 0x7FFF);
 
 			acc_pb->adpcm.yn2 = acc_pb->adpcm.yn1;
 			acc_pb->adpcm.yn1 = val;

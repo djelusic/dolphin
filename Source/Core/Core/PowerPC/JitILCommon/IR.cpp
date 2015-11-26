@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2008 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 /*
@@ -126,7 +126,7 @@ TODO (in no particular order):
 #include <set>
 #include <string>
 
-#include "Common/StdMakeUnique.h"
+#include "Common/FileUtil.h"
 #include "Common/StringUtil.h"
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"

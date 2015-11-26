@@ -19,9 +19,6 @@
     <height>32</height>
    </size>
   </property>
-  <property name="toolButtonStyle">
-   <enum>Qt::ToolButtonTextUnderIcon</enum>
-  </property>
   <property name="unifiedTitleAndToolBarOnMac">
    <bool>true</bool>
   </property>
@@ -32,19 +29,31 @@
      <x>0</x>
      <y>0</y>
      <width>990</width>
-     <height>24</height>
+     <height>21</height>
     </rect>
+   </property>
+   <property name="nativeMenuBar">
+    <bool>true</bool>
    </property>
    <widget class="QMenu" name="mnuFile">
     <property name="title">
      <string>Fi&amp;le</string>
     </property>
     <addaction name="actionOpen"/>
+    <addaction name="separator"/>
+    <addaction name="actionBrowse"/>
+    <addaction name="separator"/>
+    <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="mnuEmulation">
     <property name="title">
      <string>E&amp;mulation</string>
     </property>
+    <addaction name="actionPlay"/>
+    <addaction name="actionStop"/>
+    <addaction name="actionReset"/>
+    <addaction name="separator"/>
+    <addaction name="actionScreenshot"/>
    </widget>
    <widget class="QMenu" name="mnuOptions">
     <property name="title">
@@ -101,6 +110,9 @@
    <property name="windowTitle">
     <string>Toolbar</string>
    </property>
+   <property name="toolButtonStyle">
+    <enum>Qt::ToolButtonTextUnderIcon</enum>
+   </property>
    <attribute name="toolBarArea">
     <enum>TopToolBarArea</enum>
    </attribute>
@@ -109,6 +121,7 @@
    </attribute>
    <addaction name="actionPlay"/>
    <addaction name="actionStop"/>
+   <addaction name="actionScreenshot"/>
   </widget>
   <action name="actionWebsite">
    <property name="text">
@@ -122,7 +135,7 @@
   </action>
   <action name="actionGitHub">
    <property name="text">
-    <string>&amp;Dolphin at GitHub</string>
+    <string>&amp;GitHub Repository</string>
    </property>
   </action>
   <action name="actionAbout">
@@ -153,10 +166,22 @@
    <property name="text">
     <string>Play</string>
    </property>
+   <property name="shortcut">
+    <string>F10</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
   </action>
   <action name="actionStop">
    <property name="text">
     <string>Stop</string>
+   </property>
+   <property name="shortcut">
+    <string>Esc</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
    </property>
   </action>
   <action name="actionAboutQt">
@@ -197,6 +222,29 @@
    </property>
    <property name="text">
     <string>&amp;Icon view</string>
+   </property>
+  </action>
+  <action name="actionBrowse">
+   <property name="text">
+    <string>&amp;Browse for ISOs...</string>
+   </property>
+  </action>
+  <action name="actionExit">
+   <property name="text">
+    <string>Exit</string>
+   </property>
+  </action>
+  <action name="actionReset">
+   <property name="text">
+    <string>&amp;Reset</string>
+   </property>
+  </action>
+  <action name="actionScreenshot">
+   <property name="text">
+    <string>Screenshot</string>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
    </property>
   </action>
  </widget>

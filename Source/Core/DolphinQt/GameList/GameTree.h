@@ -1,5 +1,5 @@
 // Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
@@ -16,7 +16,7 @@ namespace Ui
 class DGameTree;
 }
 
-class DGameTree : public QTreeWidget, public AbstractGameList
+class DGameTree final : public QTreeWidget, public AbstractGameList
 {
 	Q_OBJECT
 

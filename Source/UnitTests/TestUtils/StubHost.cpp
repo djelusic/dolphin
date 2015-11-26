@@ -1,5 +1,5 @@
 // Copyright 2014 Dolphin Emulator Project
-// Licensed under GPLv2
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 // Stub implementation of the Host_* callbacks for tests. These implementations
@@ -7,8 +7,8 @@
 
 #include <string>
 
+#include "Common/GL/GLInterfaceBase.h"
 #include "Core/Host.h"
-#include "VideoBackends/OGL/GLInterfaceBase.h"
 
 void Host_NotifyMapLoaded() {}
 void Host_RefreshDSPDebuggerWindow() {}

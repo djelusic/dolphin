@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2009 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 
@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 
+#include "Common/Assert.h"
 #include "Common/CommonTypes.h"
 #include "Common/FileUtil.h"
 #include "Common/MathUtil.h"
@@ -49,11 +50,11 @@ WiiWAD::~WiiWAD()
 {
 	if (m_Valid)
 	{
-		delete m_pCertificateChain;
-		delete m_pTicket;
-		delete m_pTMD;
-		delete m_pDataApp;
-		delete m_pFooter;
+		delete[] m_pCertificateChain;
+		delete[] m_pTicket;
+		delete[] m_pTMD;
+		delete[] m_pDataApp;
+		delete[] m_pFooter;
 	}
 }
 
@@ -113,32 +114,6 @@ bool WiiWAD::ParseWAD(DiscIO::IBlobReader& _rReader)
 
 	return true;
 }
-
-bool WiiWAD::IsWiiWAD(const std::string& name)
-{
-	std::unique_ptr<IBlobReader> blob_reader(DiscIO::CreateBlobReader(name));
-	if (blob_reader == nullptr)
-		return false;
-
-	CBlobBigEndianReader big_endian_reader(*blob_reader);
-	bool result = false;
-
-	// check for Wii wad
-	if (big_endian_reader.Read32(0x00) == 0x20)
-	{
-		u32 wad_type = big_endian_reader.Read32(0x04);
-		switch (wad_type)
-		{
-		case 0x49730000:
-		case 0x69620000:
-			result = true;
-		}
-	}
-
-	return result;
-}
-
-
 
 } // namespace end
 

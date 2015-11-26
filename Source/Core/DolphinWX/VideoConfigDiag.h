@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2010 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #pragma once
@@ -11,22 +11,16 @@
 #include <wx/button.h>
 #include <wx/checkbox.h>
 #include <wx/choice.h>
-#include <wx/defs.h>
 #include <wx/dialog.h>
-#include <wx/event.h>
 #include <wx/msgdlg.h>
 #include <wx/radiobut.h>
 #include <wx/spinctrl.h>
 #include <wx/stattext.h>
-#include <wx/string.h>
-#include <wx/translation.h>
-#include <wx/window.h>
 
 #include "Common/CommonTypes.h"
 #include "Common/SysConf.h"
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
-#include "Core/CoreParameter.h"
 #include "DolphinWX/PostProcessingConfigDiag.h"
 #include "DolphinWX/WxUtils.h"
 #include "VideoCommon/PostProcessing.h"
@@ -108,7 +102,7 @@ protected:
 				Close();
 
 				g_video_backend = new_backend;
-				SConfig::GetInstance().m_LocalCoreStartupParameter.m_strVideoBackend = g_video_backend->GetName();
+				SConfig::GetInstance().m_strVideoBackend = g_video_backend->GetName();
 
 				g_video_backend->ShowConfig(GetParent());
 			}
@@ -128,7 +122,7 @@ protected:
 	void Event_ProgressiveScan(wxCommandEvent &ev)
 	{
 		SConfig::GetInstance().m_SYSCONF->SetData("IPL.PGS", ev.GetInt());
-		SConfig::GetInstance().m_LocalCoreStartupParameter.bProgressive = ev.IsChecked();
+		SConfig::GetInstance().bProgressive = ev.IsChecked();
 
 		ev.Skip();
 	}
@@ -152,7 +146,7 @@ protected:
 		// Should we enable the configuration button?
 		PostProcessingShaderConfiguration postprocessing_shader;
 		postprocessing_shader.LoadShader(vconfig.sPostProcessingShader);
-		button_config_pp->Enable(postprocessing_shader.HasOptions() && vconfig.iStereoMode != STEREO_ANAGLYPH);
+		button_config_pp->Enable(postprocessing_shader.HasOptions());
 
 		ev.Skip();
 	}
@@ -181,15 +175,10 @@ protected:
 
 	void Event_StereoMode(wxCommandEvent &ev)
 	{
-		if (ev.GetInt() == STEREO_ANAGLYPH && vconfig.backend_info.PPShaders.size())
+		if (vconfig.backend_info.bSupportsPostProcessing)
 		{
 			// Anaglyph overrides post-processing shaders
-			choice_ppshader->Select(0);
-			choice_ppshader->Enable(false);
-		}
-		else if (vconfig.backend_info.PPShaders.size())
-		{
-			choice_ppshader->Enable(true);
+			choice_ppshader->Clear();
 		}
 
 		ev.Skip();
@@ -205,14 +194,17 @@ protected:
 		choice_aamode->Enable(vconfig.backend_info.AAModes.size() > 1);
 		text_aamode->Enable(vconfig.backend_info.AAModes.size() > 1);
 
-		// EFB copy
-		efbcopy_texture->Enable(vconfig.bEFBCopyEnable);
-		efbcopy_ram->Enable(vconfig.bEFBCopyEnable);
-		cache_efb_copies->Enable(vconfig.bEFBCopyEnable && !vconfig.bCopyEFBToTexture);
 
 		// XFB
 		virtual_xfb->Enable(vconfig.bUseXFB);
 		real_xfb->Enable(vconfig.bUseXFB);
+
+		// custom textures
+		cache_hires_textures->Enable(vconfig.bHiresTextures);
+
+		// Repopulating the post-processing shaders can't be done from an event
+		if (choice_ppshader && choice_ppshader->IsEmpty())
+			PopulatePostProcessingShaders();
 
 		// Things which shouldn't be changed during emulation
 		if (Core::IsRunning())
@@ -220,7 +212,7 @@ protected:
 			choice_backend->Disable();
 			label_backend->Disable();
 
-			//D3D only
+			// D3D only
 			if (vconfig.backend_info.Adapters.size())
 			{
 				choice_adapter->Disable();
@@ -228,7 +220,7 @@ protected:
 			}
 
 #ifndef __APPLE__
-			// This isn't supported on OSX.
+			// This isn't supported on OS X.
 
 			choice_display_resolution->Disable();
 			label_display_resolution->Disable();
@@ -251,6 +243,9 @@ protected:
 	void Evt_EnterControl(wxMouseEvent& ev);
 	void Evt_LeaveControl(wxMouseEvent& ev);
 	void CreateDescriptionArea(wxPanel* const page, wxBoxSizer* const sizer);
+	void PopulatePostProcessingShaders();
+	void PopulateAAList();
+	void OnAAChanged(wxCommandEvent& ev);
 
 	wxChoice* choice_backend;
 	wxChoice* choice_adapter;
@@ -260,7 +255,7 @@ protected:
 	wxStaticText* label_adapter;
 
 	wxStaticText* text_aamode;
-	SettingChoice* choice_aamode;
+	wxChoice* choice_aamode;
 
 	wxStaticText* label_display_resolution;
 
@@ -269,12 +264,10 @@ protected:
 	SettingCheckBox* borderless_fullscreen;
 	SettingCheckBox* render_to_main_checkbox;
 
-	SettingRadioButton* efbcopy_texture;
-	SettingRadioButton* efbcopy_ram;
-	SettingCheckBox* cache_efb_copies;
-
 	SettingRadioButton* virtual_xfb;
 	SettingRadioButton* real_xfb;
+
+	SettingCheckBox* cache_hires_textures;
 
 	wxCheckBox* progressive_scan_checkbox;
 
@@ -285,4 +278,6 @@ protected:
 
 	VideoConfig &vconfig;
 	std::string ininame;
+
+	int m_msaa_modes;
 };

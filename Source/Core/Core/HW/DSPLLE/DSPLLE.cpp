@@ -1,5 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
+// Copyright 2008 Dolphin Emulator Project
+// Licensed under GPLv2+
 // Refer to the license.txt file included.
 
 #include <mutex>
@@ -12,6 +12,7 @@
 #include "Common/CPUDetect.h"
 #include "Common/Event.h"
 #include "Common/IniFile.h"
+#include "Common/Thread.h"
 #include "Common/Logging/LogManager.h"
 
 #include "Core/ConfigManager.h"
@@ -34,12 +35,13 @@
 #include "Core/HW/DSPLLE/DSPSymbols.h"
 
 DSPLLE::DSPLLE()
+	: m_hDSPThread()
+	, m_csDSPThreadActive()
+	, m_bWii(false)
+	, m_bDSPThread(false)
+	, m_bIsRunning(false)
+	, m_cycle_count(0)
 {
-	m_bIsRunning.Clear();
-	{
-	std::lock_guard<std::mutex> lk(m_csDSPCycleCountActive);
-	m_cycle_count = 0;
-	}
 }
 
 static Common::Event dspEvent;
@@ -72,7 +74,7 @@ void DSPLLE::DoState(PointerWrap &p)
 	}
 
 	p.Do(g_dsp.step_counter);
-	p.Do(g_dsp.ifx_regs);
+	p.DoArray(g_dsp.ifx_regs);
 	p.Do(g_dsp.mbox[0]);
 	p.Do(g_dsp.mbox[1]);
 	UnWriteProtectMemory(g_dsp.iram, DSP_IRAM_BYTE_SIZE, false);
@@ -93,12 +95,7 @@ void DSPLLE::DSPThread(DSPLLE* dsp_lle)
 
 	while (dsp_lle->m_bIsRunning.IsSet())
 	{
-		int cycles = 0;
-		{
-		std::lock_guard<std::mutex> lk(dsp_lle->m_csDSPCycleCountActive);
-		cycles = (int)dsp_lle->m_cycle_count;
-		}
-
+		const int cycles = static_cast<int>(dsp_lle->m_cycle_count.load());
 		if (cycles > 0)
 		{
 			std::lock_guard<std::mutex> dsp_thread_lock(dsp_lle->m_csDSPThreadActive);
@@ -110,10 +107,7 @@ void DSPLLE::DSPThread(DSPLLE* dsp_lle)
 			{
 				DSPInterpreter::RunCyclesThread(cycles);
 			}
-			{
-			std::lock_guard<std::mutex> cycle_count_lock(dsp_lle->m_csDSPCycleCountActive);
-			dsp_lle->m_cycle_count = 0;
-			}
+			dsp_lle->m_cycle_count.store(0);
 		}
 		else
 		{
@@ -131,8 +125,8 @@ static bool LoadDSPRom(u16* rom, const std::string& filename, u32 size_in_bytes)
 
 	if (bytes.size() != size_in_bytes)
 	{
-		ERROR_LOG(DSPLLE, "%s has a wrong size (%u, expected %u)",
-		          filename.c_str(), (u32)bytes.size(), size_in_bytes);
+		ERROR_LOG(DSPLLE, "%s has a wrong size (%zu, expected %u)",
+		          filename.c_str(), bytes.size(), size_in_bytes);
 		return false;
 	}
 
@@ -172,10 +166,6 @@ static bool FillDSPInitOptions(DSPInitOptions* opts)
 
 bool DSPLLE::Initialize(bool bWii, bool bDSPThread)
 {
-	m_bWii = bWii;
-	m_bDSPThread = true;
-	if (NetPlay::IsNetPlayRunning() || Movie::IsMovieActive() || Core::g_want_determinism || !bDSPThread || !dspjit)
-		m_bDSPThread = false;
 	requestDisableThread = false;
 
 	DSPInitOptions opts;
@@ -184,26 +174,35 @@ bool DSPLLE::Initialize(bool bWii, bool bDSPThread)
 	if (!DSPCore_Init(opts))
 		return false;
 
+	// needs to be after DSPCore_Init for the dspjit ptr
+	if (NetPlay::IsNetPlayRunning() || Movie::IsMovieActive() ||
+	    Core::g_want_determinism    || !dspjit)
+	{
+		bDSPThread = false;
+	}
+	m_bWii = bWii;
+	m_bDSPThread = bDSPThread;
+
 	// DSPLLE directly accesses the fastmem arena.
-	g_dsp.cpu_ram = Memory::base;
+	// TODO: The fastmem arena is only supposed to be used by the JIT:
+	// among other issues, its size is only 1GB on 32-bit targets.
+	g_dsp.cpu_ram = Memory::physical_base;
 	DSPCore_Reset();
 
 	InitInstructionTable();
 
-	if (m_bDSPThread)
+	if (bDSPThread)
 	{
 		m_bIsRunning.Set(true);
 		m_hDSPThread = std::thread(DSPThread, this);
 	}
 
 	Host_RefreshDSPDebuggerWindow();
-
 	return true;
 }
 
 void DSPLLE::DSP_StopSoundStream()
 {
-	DSPInterpreter::Stop();
 	if (m_bDSPThread)
 	{
 		m_bIsRunning.Clear();
@@ -250,19 +249,19 @@ u16 DSPLLE::DSP_ReadControlRegister()
 
 u16 DSPLLE::DSP_ReadMailBoxHigh(bool _CPUMailbox)
 {
-	return gdsp_mbox_read_h(_CPUMailbox ? GDSP_MBOX_CPU : GDSP_MBOX_DSP);
+	return gdsp_mbox_read_h(_CPUMailbox ? MAILBOX_CPU : MAILBOX_DSP);
 }
 
 u16 DSPLLE::DSP_ReadMailBoxLow(bool _CPUMailbox)
 {
-	return gdsp_mbox_read_l(_CPUMailbox ? GDSP_MBOX_CPU : GDSP_MBOX_DSP);
+	return gdsp_mbox_read_l(_CPUMailbox ? MAILBOX_CPU : MAILBOX_DSP);
 }
 
 void DSPLLE::DSP_WriteMailBoxHigh(bool _CPUMailbox, u16 _uHighMail)
 {
 	if (_CPUMailbox)
 	{
-		if (gdsp_mbox_peek(GDSP_MBOX_CPU) & 0x80000000)
+		if (gdsp_mbox_peek(MAILBOX_CPU) & 0x80000000)
 		{
 			ERROR_LOG(DSPLLE, "Mailbox isnt empty ... strange");
 		}
@@ -274,7 +273,7 @@ void DSPLLE::DSP_WriteMailBoxHigh(bool _CPUMailbox, u16 _uHighMail)
 		}
 #endif
 
-		gdsp_mbox_write_h(GDSP_MBOX_CPU, _uHighMail);
+		gdsp_mbox_write_h(MAILBOX_CPU, _uHighMail);
 	}
 	else
 	{
@@ -286,7 +285,7 @@ void DSPLLE::DSP_WriteMailBoxLow(bool _CPUMailbox, u16 _uLowMail)
 {
 	if (_CPUMailbox)
 	{
-		gdsp_mbox_write_l(GDSP_MBOX_CPU, _uLowMail);
+		gdsp_mbox_write_l(MAILBOX_CPU, _uLowMail);
 	}
 	else
 	{
@@ -325,7 +324,7 @@ void DSPLLE::DSP_Update(int cycles)
 			DSP_StopSoundStream();
 			m_bDSPThread = false;
 			requestDisableThread = false;
-			SConfig::GetInstance().m_LocalCoreStartupParameter.bDSPThread = false;
+			SConfig::GetInstance().bDSPThread = false;
 		}
 	}
 
@@ -337,12 +336,9 @@ void DSPLLE::DSP_Update(int cycles)
 	}
 	else
 	{
-		// Wait for dsp thread to complete its cycle. Note: this logic should be thought through.
+		// Wait for DSP thread to complete its cycle. Note: this logic should be thought through.
 		ppcEvent.Wait();
-		{
-		std::lock_guard<std::mutex> lk(m_csDSPCycleCountActive);
-		m_cycle_count += dsp_cycles;
-		}
+		m_cycle_count.fetch_add(dsp_cycles);
 		dspEvent.Set();
 	}
 }
